@@ -26,6 +26,7 @@ import org.junit.Before;
 import org.junit.Test;
 
 import org.springframework.core.MethodParameter;
+import org.springframework.expression.BeanResolver;
 import org.springframework.expression.spel.SpelEvaluationException;
 import org.springframework.security.authentication.TestingAuthenticationToken;
 import org.springframework.security.core.Authentication;
@@ -38,6 +39,11 @@ import org.springframework.util.ReflectionUtils;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatExceptionOfType;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.BDDMockito.mock;
+import static org.mockito.BDDMockito.verify;
+import static org.mockito.BDDMockito.when;
 
 /**
  * @author Dan Zheng
@@ -45,11 +51,16 @@ import static org.assertj.core.api.Assertions.assertThatExceptionOfType;
  *
  */
 public class CurrentSecurityContextArgumentResolverTests {
+
+	private BeanResolver beanResolver;
+
 	private CurrentSecurityContextArgumentResolver resolver;
 
 	@Before
 	public void setup() {
+		this.beanResolver = mock(BeanResolver.class);
 		this.resolver = new CurrentSecurityContextArgumentResolver();
+		this.resolver.setBeanResolver(this.beanResolver);
 	}
 
 	@After
@@ -102,6 +113,15 @@ public class CurrentSecurityContextArgumentResolverTests {
 		Authentication auth1 = (Authentication)
 				this.resolver.resolveArgument(showSecurityContextAuthenticationAnnotation(), null, null, null);
 		assertThat(auth1.getPrincipal()).isEqualTo(principal);
+	}
+
+	@Test
+	public void resolveArgumentWithAuthenticationWithBean() throws Exception {
+		String principal = "john";
+		when(this.beanResolver.resolve(any(), eq("test"))).thenReturn(principal);
+		assertThat(this.resolver.resolveArgument(showSecurityContextAuthenticationWithBean(), null, null, null))
+				.isEqualTo(principal);
+		verify(this.beanResolver).resolve(any(), eq("test"));
 	}
 
 	@Test
@@ -217,6 +237,10 @@ public class CurrentSecurityContextArgumentResolverTests {
 		return getMethodParameter("showSecurityContextAuthenticationAnnotation", Authentication.class);
 	}
 
+	public MethodParameter showSecurityContextAuthenticationWithBean() {
+		return getMethodParameter("showSecurityContextAuthenticationWithBean", String.class);
+	}
+
 	private MethodParameter showSecurityContextAuthenticationWithOptionalPrincipal() {
 		return getMethodParameter("showSecurityContextAuthenticationWithOptionalPrincipal", Object.class);
 	}
@@ -277,6 +301,10 @@ public class CurrentSecurityContextArgumentResolverTests {
 		}
 
 		public void showSecurityContextAuthenticationAnnotation(@CurrentSecurityContext(expression = "authentication") Authentication authentication) {
+		}
+
+		public void showSecurityContextAuthenticationWithBean(
+				@CurrentSecurityContext(expression = "@test") String name) {
 		}
 
 		public void showSecurityContextAuthenticationWithOptionalPrincipal(@CurrentSecurityContext(expression = "authentication?.principal") Object principal) {

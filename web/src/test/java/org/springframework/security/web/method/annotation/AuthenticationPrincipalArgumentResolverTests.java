@@ -27,6 +27,7 @@ import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
 import org.springframework.core.MethodParameter;
+import org.springframework.expression.BeanResolver;
 import org.springframework.security.authentication.TestingAuthenticationToken;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.core.authority.AuthorityUtils;
@@ -35,17 +36,28 @@ import org.springframework.security.core.userdetails.User;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.util.ReflectionUtils;
 
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.BDDMockito.mock;
+import static org.mockito.BDDMockito.verify;
+import static org.mockito.BDDMockito.when;
+
 /**
  * @author Rob Winch
  *
  */
 public class AuthenticationPrincipalArgumentResolverTests {
+
+	private BeanResolver beanResolver;
+
 	private Object expectedPrincipal;
 	private AuthenticationPrincipalArgumentResolver resolver;
 
 	@Before
 	public void setup() {
+		beanResolver = mock(BeanResolver.class);
 		resolver = new AuthenticationPrincipalArgumentResolver();
+		resolver.setBeanResolver(this.beanResolver);
 	}
 
 	@After
@@ -129,6 +141,17 @@ public class AuthenticationPrincipalArgumentResolverTests {
 	}
 
 	@Test
+	public void resolveArgumentSpelBean() throws Exception {
+		CustomUserPrincipal principal = new CustomUserPrincipal();
+		setAuthenticationPrincipal(principal);
+		when(this.beanResolver.resolve(any(), eq("test"))).thenReturn(principal.property);
+		this.expectedPrincipal = principal.property;
+		assertThat(this.resolver.resolveArgument(showUserSpelBean(), null, null, null))
+				.isEqualTo(this.expectedPrincipal);
+		verify(this.beanResolver).resolve(any(), eq("test"));
+	}
+
+	@Test
 	public void resolveArgumentSpelCopy() throws Exception {
 		CopyUserPrincipal principal = new CopyUserPrincipal("property");
 		setAuthenticationPrincipal(principal);
@@ -198,6 +221,10 @@ public class AuthenticationPrincipalArgumentResolverTests {
 		return getMethodParameter("showUserSpel", String.class);
 	}
 
+	private MethodParameter showUserSpelBean() {
+		return getMethodParameter("showUserSpelBean", String.class);
+	}
+
 	private MethodParameter showUserSpelCopy() {
 		return getMethodParameter("showUserSpelCopy", CopyUserPrincipal.class);
 	}
@@ -253,6 +280,9 @@ public class AuthenticationPrincipalArgumentResolverTests {
 
 		public void showUserSpel(
 				@AuthenticationPrincipal(expression = "property") String user) {
+		}
+
+		public void showUserSpelBean(@AuthenticationPrincipal(expression = "@test") String user) {
 		}
 
 		public void showUserSpelCopy(
